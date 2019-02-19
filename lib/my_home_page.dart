@@ -12,14 +12,17 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  double num1 = 0;
-  double num2 = 0;
+  double num1;
+  double num2;
   String output = "0";
   String _output = "0";
   String operation = "";
   bool isOpen = false;
+  bool operatorAdded =
+      false; // essential for continuos calculations and for changing operator multiple times
   bool continueAppendingDigits =
       true; //to reset digits for consequent & non-related calculations
+  ScrollController _scrollController = new ScrollController();
 
   @override
   void initState() {
@@ -49,45 +52,48 @@ class _MyHomePageState extends State<MyHomePage> {
   Stack buildEntryHistoryScreen() {
     return Stack(
       children: <Widget>[
-        Column(
-          children: <Widget>[
-            Flexible(
-              child: FutureBuilder<List<Entry>>(
-                future: DBProvider.db.getAllPastEntries(),
-                builder: (BuildContext context,
-                    AsyncSnapshot<List<Entry>> snapshot) {
-                  if (snapshot.hasData) {
-                    return ListView.builder(
-                      itemCount: snapshot.data.length,
-                      itemBuilder: (BuildContext context, int index) {
-                        Entry item = snapshot.data[index];
-                        return ListTile(
-                            trailing: Text(
-                                "${item.num1} ${item.operation} ${item.num2} = ${item.result}",
-                                style: new TextStyle(
-                                    fontSize: 20.0,
-                                    fontWeight: FontWeight.w400,
-                                    color: Colors.white)));
-                      },
-                    );
-                  } else {
-                    return Center(child: CircularProgressIndicator());
-                  }
-                },
+        Padding(
+          padding: EdgeInsets.only(top: 20.0),
+          child: Column(
+            children: <Widget>[
+              Flexible(
+                child: FutureBuilder<List<Entry>>(
+                  future: DBProvider.db.getAllPastEntries(),
+                  builder: (BuildContext context,
+                      AsyncSnapshot<List<Entry>> snapshot) {
+                    if (snapshot.hasData) {
+                      return ListView.builder(
+                        itemCount: snapshot.data.length,
+                        itemBuilder: (BuildContext context, int index) {
+                          Entry item = snapshot.data[index];
+                          return ListTile(
+                              trailing: Text(
+                                  "${item.num1} ${item.operation} ${item.num2} = ${item.result}",
+                                  style: new TextStyle(
+                                      fontSize: 20.0,
+                                      fontWeight: FontWeight.w400,
+                                      color: Colors.white)));
+                        },
+                      );
+                    } else {
+                      return Center(child: CircularProgressIndicator());
+                    }
+                  },
+                ),
               ),
-            ),
-            IconButton(
-              icon: isOpen
-                  ? Icon(Icons.keyboard_arrow_up)
-                  : Icon(Icons.keyboard_arrow_down),
-              color: Colors.white,
-              onPressed: () {
-                setState(() {
-                  isOpen = !isOpen;
-                });
-              },
-            )
-          ],
+              IconButton(
+                icon: isOpen
+                    ? Icon(Icons.keyboard_arrow_up)
+                    : Icon(Icons.keyboard_arrow_down),
+                color: Colors.white,
+                onPressed: () {
+                  setState(() {
+                    isOpen = !isOpen;
+                  });
+                },
+              )
+            ],
+          ),
         ),
         Align(
           alignment: Alignment(-0.9, -0.85),
@@ -109,28 +115,40 @@ class _MyHomePageState extends State<MyHomePage> {
   Column buildCalculator() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
+      mainAxisSize: MainAxisSize.max,
       children: <Widget>[
-        Container(
-            alignment: Alignment.centerRight,
-            padding: new EdgeInsets.symmetric(vertical: 24.0, horizontal: 12.0),
-            child: new Text("${getFormatedDigits(num1.toString())} $operation",
-                style: new TextStyle(
-                    fontSize: 20.0,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.white))),
-        GestureDetector(
-          onHorizontalDragStart: (dragStartDetails) {
-            buttonPressed('DEL');
-          },
-          child: Container(
-              alignment: Alignment.centerRight,
-              padding:
-                  new EdgeInsets.symmetric(vertical: 24.0, horizontal: 12.0),
-              child: new Text(output,
-                  style: new TextStyle(
-                      fontSize: 48.0,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white))),
+        Expanded(
+          child: new ListView(
+            shrinkWrap: true,
+            controller: _scrollController,
+            children: <Widget>[
+              Container(
+                  alignment: Alignment.bottomRight,
+                  padding: new EdgeInsets.symmetric(
+                      vertical: 20.0, horizontal: 12.0),
+                  child: new Text(
+                      "${getFormatedDigits(num1.toString())} $operation",
+                      style: new TextStyle(
+                          fontSize: 20.0,
+                          fontWeight: FontWeight.w400,
+                          color: Colors.white))),
+              GestureDetector(
+                onHorizontalDragStart: (dragStartDetails) {
+                  buttonPressed('DEL');
+                },
+                child: Container(
+                    alignment: Alignment.centerRight,
+                    padding: new EdgeInsets.symmetric(
+                        vertical: 20.0, horizontal: 12.0),
+                    child: new Text(output,
+                        style: new TextStyle(
+                          fontSize: 44.0,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ))),
+              ),
+            ],
+          ),
         ),
         IconButton(
           icon: isOpen
@@ -225,7 +243,7 @@ class _MyHomePageState extends State<MyHomePage> {
               highlightColor: Color(0xFF12447B),
             ),
           ],
-        )
+        ),
       ],
     );
   }
@@ -248,55 +266,30 @@ class _MyHomePageState extends State<MyHomePage> {
         pressedButton == "-" ||
         pressedButton == "/" ||
         pressedButton == "*") {
-      if (_output == "") {
-        num1 = 0;
-        _output = "0";
-      } else {
-        num1 = double.parse(_output); // handles contiguous calculation
+      if (operatorAdded && _output == "0") {
+        //allows changing of operator
+        operation = pressedButton;
+        setState(() {});
+        return;
       }
+      if (num1 != null && operatorAdded) {
+        performCalc();
+      }
+
+      num1 = double.parse(_output); // handles contiguous calculation
       _output = "0";
       operation = pressedButton;
+      operatorAdded = true;
       continueAppendingDigits = true;
     } else if (pressedButton == ".") {
-      if (!_output.contains(".")) {//should not add this to the else if %imp%
+      if (!_output.contains(".")) {
+        //should not add this to the else if %imp%
         // eliminated multiple fractional parts
-      print("No . found so adding .");
-      _output = _output + pressedButton;
+        print("No . found so adding .");
+        _output = _output + pressedButton;
       }
     } else if (pressedButton == "=") {
-      num2 = double.parse(_output);
-      switch (operation) {
-        case '+':
-          {
-            _output = (num1 + num2).toString();
-            break;
-          }
-        case '-':
-          {
-            _output = (num1 - num2).toString();
-            break;
-          }
-        case '/':
-          {
-            _output = num2 != 0
-                ? (num1 / num2).toString()
-                : 0; // handles division by 0
-            break;
-          }
-        case '*':
-          {
-            _output = (num1 * num2).toString();
-            break;
-          }
-      }
-      _output = getFormatedDigits(_output);
-
-      addEntryToDatabase(num1, num2, operation, _output);
-
-      num1 = 0;
-      num2 = 0;
-      operation = "";
-      continueAppendingDigits = false;
+      performCalc();
     } else if (pressedButton == "DEL") {
       int length = _output.length;
       _output = length > 1 ? _output.substring(0, _output.length - 1) : "0";
@@ -308,9 +301,47 @@ class _MyHomePageState extends State<MyHomePage> {
         continueAppendingDigits = true;
       }
     }
+    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
     setState(() {
       output = _output;
     });
+  }
+
+  void performCalc() {
+    num2 = double.parse(_output);
+    print("performing $num1 $operation $num2");
+    switch (operation) {
+      case '+':
+        {
+          _output = (num1 + num2).toString();
+          break;
+        }
+      case '-':
+        {
+          _output = (num1 - num2).toString();
+          break;
+        }
+      case '/':
+        {
+          _output =
+              num2 != 0 ? (num1 / num2).toString() : 0; // handles division by 0
+          break;
+        }
+      case '*':
+        {
+          _output = (num1 * num2).toString();
+          break;
+        }
+    }
+    _output = getFormatedDigits(_output);
+
+    addEntryToDatabase(num1, num2, operation, _output);
+
+    num1 = null;
+    num2 = null;
+    operation = "";
+    continueAppendingDigits = false;
+    operatorAdded = false;
   }
 
   String getFormatedDigits(String number) {
@@ -328,7 +359,7 @@ class _MyHomePageState extends State<MyHomePage> {
     } catch (e) {
       print("nothing imp to catch");
     }
-    return formattedDigits;
+    return formattedDigits == "null" ? "0" : formattedDigits;
   }
 
   String removeLeadingZeroes(String number) {
@@ -366,6 +397,6 @@ class _MyHomePageState extends State<MyHomePage> {
 }
 
 //TODO
-//1.Display operand 1 after inputting operation -> done
-//2.Implement simple database to store atleast 10 past calculations
-//3.Comma separator
+//1.Comma separator
+//2.Support for complex calculations
+
