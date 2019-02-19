@@ -3,7 +3,7 @@ A full-fledged calculator application built using Flutter and Dart. It allows ba
 
 ## Key Aspects 
 1. Facilitates calculations in a continuous fashion
-2. Has a SQLite data base that stores the past calculations
+2. Has a SQLite database that stores the past calculations
 
 ## Screenshots
 
